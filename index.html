@@ -97,17 +97,15 @@
         const database = getDatabase(app);
         const clientsRef = ref(database, 'clients');
 
-        // --- NO NECESITAS ESTOS DATOS INICIALES SI YA LOS TIENES EN FIREBASE ---
-        // const initialClientsData = [ ... ]; // Comentado o eliminado
-
-        let totalAutomotriz = 300;
-        let totalIndustrial = 300;
         let clientsData = {}; // Almacenará los datos de Firebase
         let currentFilters = { // Almacenará los filtros actuales
              searchTerm: '',
              estadoEnvio: 'TODOS',
              estadoVerificacion: 'TODOS'
         };
+        // Variables globales para los contadores (ya no se declaran aquí, se manejan en updateGlobalCounters)
+        // let totalAutomotriz = 300; <--- Eliminado
+        // let totalIndustrial = 300; <--- Eliminado
 
         const automotrizCounter = document.getElementById('automotriz-counter');
         const industrialCounter = document.getElementById('industrial-counter');
@@ -129,25 +127,31 @@
             return `${day}/${month}/${year} – ${hour}:${minute}:${second}`;
         }
 
-        // Función para actualizar los contadores globales
+        // *** FUNCIÓN CORREGIDA ***
+        // Función para actualizar los contadores globales basándose en un total inicial de 300
         function updateGlobalCounters(data) {
-            let countAutomotrizPendiente = 0;
-            let countIndustrialPendiente = 0;
+            let automotrizEnviados = 0;
+            let industrialEnviados = 0;
+
             Object.values(data).forEach(client => {
-                if (client.estadoEnvio !== 'ENVIADO') {
+                if (client.estadoEnvio === 'ENVIADO') {
                     if (client.tipoCatalogo.includes('AUTOMOTRIZ')) {
-                        countAutomotrizPendiente++;
+                        automotrizEnviados++;
                     }
                     if (client.tipoCatalogo.includes('INDUSTRIAL')) {
-                        countIndustrialPendiente++;
+                        industrialEnviados++;
                     }
                 }
             });
-            totalAutomotriz = countAutomotrizPendiente;
-            totalIndustrial = countIndustrialPendiente;
-            automotrizCounter.textContent = `FALTA ${totalAutomotriz} CATALOGOS AUTOMOTRICES`;
-            industrialCounter.textContent = `FALTA ${totalIndustrial} CATALOGOS INDUSTRIALES`;
+
+            // Calcula los pendientes restando los enviados del total inicial de 300
+            const totalAutomotrizPendiente = 300 - automotrizEnviados;
+            const totalIndustrialPendiente = 300 - industrialEnviados;
+
+            automotrizCounter.textContent = `FALTA ${totalAutomotrizPendiente} CATALOGOS AUTOMOTRICES`;
+            industrialCounter.textContent = `FALTA ${totalIndustrialPendiente} CATALOGOS INDUSTRIALES`;
         }
+
 
         // Función para filtrar y renderizar la lista de clientes
         function renderClientList() {
@@ -156,7 +160,17 @@
             const filterEnvio = currentFilters.estadoEnvio;
             const filterVerificacion = currentFilters.estadoVerificacion;
 
-            Object.keys(clientsData).forEach(key => {
+            // Ordenar los clientes alfabéticamente por nombre antes de renderizar
+            const sortedClientKeys = Object.keys(clientsData).sort((a, b) => {
+                const nameA = clientsData[a].nombre.toLowerCase();
+                const nameB = clientsData[b].nombre.toLowerCase();
+                if (nameA < nameB) return -1;
+                if (nameA > nameB) return 1;
+                return 0;
+            });
+
+
+            sortedClientKeys.forEach(key => { // Iterar sobre las claves ordenadas
                 const client = clientsData[key];
                 let show = true;
 
@@ -243,7 +257,7 @@
             }
 
             const password = prompt('Ingrese la clave para registrar el envío:', '');
-            if (password === 'DV123') { // Cambia 'TU_CLAVE_ENVIO' por tu clave real
+            if (password === 'DV123') {
                 const updates = {
                     estadoEnvio: 'ENVIADO',
                     fechaEnvio: getCurrentDateTime()
@@ -279,7 +293,7 @@
             }
 
             const password = prompt('Ingrese la clave para registrar la confirmación:', '');
-             if (password === 'JF123') { // Cambia 'TU_CLAVE_CONFIRMACION' por tu clave real
+             if (password === 'JF123') {
                 const updates = {
                     estadoVerificacion: 'VERIFICADO',
                     fechaVerificacion: getCurrentDateTime()
@@ -345,19 +359,20 @@
         onValue(clientsRef, (snapshot) => {
             if (snapshot.exists()) {
                 clientsData = snapshot.val();
-                updateGlobalCounters(clientsData); // Actualizar contadores globales
+                updateGlobalCounters(clientsData); // Actualizar contadores globales con la lógica corregida
                 renderClientList(); // Renderizar la lista con los datos y filtros actuales
             } else {
                 console.log("No hay datos en Firebase. Considera cargar datos iniciales si es necesario.");
                 clientsData = {}; // Asegurar que esté vacío
-                updateGlobalCounters({});
+                updateGlobalCounters({}); // Actualizar contadores (mostrará 300/300)
                 renderClientList();
                 // --- Descomenta esta sección si necesitas cargar datos iniciales la primera vez ---
                 /*
                 console.log("Cargando datos iniciales a Firebase...");
                 const initialDataLoad = {};
+                // Asegúrate que `initialClientsData` esté definido si descomentas esto
+                // const initialClientsData = [ ... ];
                 initialClientsData.forEach((client, index) => {
-                    // Usar una clave más descriptiva o mantener client-index
                     initialDataLoad[`client-${index}`] = client;
                 });
                 set(clientsRef, initialDataLoad).then(() => {
@@ -423,7 +438,7 @@
         <div class="buttons">
             <button id="register-shipment">REGISTRAR ENVÍO</button>
             <button id="register-confirmation">REGISTRAR VERIFICACIÓN</button>
-            <button id="export-button">EXPORTAR DATOS</button>
+            <button id="export-button">EXPORTAR VISTA ACTUAL</button>
         </div>
     </div>
 </body>
